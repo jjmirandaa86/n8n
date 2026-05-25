@@ -1,0 +1,65 @@
+name: CI/CD Deploy n8n
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      N8N_IMAGE: docker.n8n.io/n8nio/n8n
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf "%s\n" "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy n8n container
+        run: |
+          ssh -i ~/.ssh/id_rsa root@${{ secrets.SERVER_IP }} << EOF
+            set -e
+
+            N8N_IMAGE="${N8N_IMAGE}"
+
+            echo "========================================"
+            echo "1. Directorio de datos n8n"
+            echo "========================================"
+            mkdir -p /app/n8n
+            chown -R 1000:1000 /app/n8n 2>/dev/null || true
+
+            echo "========================================"
+            echo "2. Red Docker app_network"
+            echo "========================================"
+            docker network inspect app_network >/dev/null 2>&1 || docker network create app_network
+
+            echo "========================================"
+            echo "3. Contenedor n8n"
+            echo "========================================"
+            docker stop n8n || true
+            docker rm n8n || true
+
+            N8N_RUN_ARGS=(
+              -d
+              --name n8n
+              --network app_network
+              --restart unless-stopped
+              -v /app/n8n:/home/node/.n8n
+            )
+
+            docker run "\${N8N_RUN_ARGS[@]}" "\$N8N_IMAGE"
+
+            echo "========================================"
+            echo "4. Estado"
+            echo "========================================"
+            docker ps --filter name=n8n
+            echo "✅ n8n desplegado"
+          EOF
