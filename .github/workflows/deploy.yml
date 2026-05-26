@@ -11,6 +11,7 @@ jobs:
 
     env:
       N8N_IMAGE: docker.n8n.io/n8nio/n8n
+      N8N_DOMAIN: n8n.acertijo.dev
 
     steps:
       - name: Checkout
@@ -29,12 +30,19 @@ jobs:
             set -e
 
             N8N_IMAGE="${N8N_IMAGE}"
+            N8N_DOMAIN="${N8N_DOMAIN}"
+            PROCESSED_DIR=/app/projects/uefn-backend/procesed
 
             echo "========================================"
-            echo "1. Directorio de datos n8n"
+            echo "1. Directorio de datos n8n y permisos"
             echo "========================================"
             mkdir -p /app/n8n
             chown -R 1000:1000 /app/n8n 2>/dev/null || true
+
+            mkdir -p "\$PROCESSED_DIR"
+            chown -R 1000:1000 "\$PROCESSED_DIR" 2>/dev/null || true
+
+            chmod -R 775 "\$PROCESSED_DIR" 2>/dev/null || true
 
             echo "========================================"
             echo "2. Red Docker app_network"
@@ -53,12 +61,29 @@ jobs:
               --network app_network
               --restart unless-stopped
               -v /app/n8n:/home/node/.n8n
+              -v "\$PROCESSED_DIR":/files
+              -e N8N_HOST=\${N8N_DOMAIN}
+              -e N8N_PORT=5678
+              -e N8N_PROTOCOL=https
+              -e WEBHOOK_URL=https://\${N8N_DOMAIN}/
+              -e N8N_EDITOR_BASE_URL=https://\${N8N_DOMAIN}/
+              -e N8N_PROXY_HOPS=1
+              -e GENERIC_TIMEZONE=Australia/Sydney
+              -e EXECUTIONS_TIMEOUT=3600
+              -e EXECUTIONS_TIMEOUT_MAX=7200
             )
 
             docker run "\${N8N_RUN_ARGS[@]}" "\$N8N_IMAGE"
+            
+            echo "========================================"
+            echo "4. Prueba de escritura"
+            echo "========================================"
+
+            docker exec n8n sh -c 'mkdir -p /files/test && echo "ok" > /files/test/write-test.txt'
+
 
             echo "========================================"
-            echo "4. Estado"
+            echo "5. Estado"
             echo "========================================"
             docker ps --filter name=n8n
             echo "✅ n8n desplegado"

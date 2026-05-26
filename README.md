@@ -1,26 +1,30 @@
 # n8n — Deploy en droplet
 
-Automatización con GitHub Actions: contenedor **n8n** en la red Docker `app_network` y datos persistentes en `/app/n8n`.
+Contenedor **n8n** en `app_network`, datos en `/app/n8n`, acceso en **https://n8n.acertijo.dev** (proxy en `ngnix-droplets-sydney`).
 
-El dominio y el proxy (nginx) se configuran en otro proyecto.
+## Secrets GitHub
 
-## Requisitos
-
-| Requisito         | Detalle                                                                   |
-| ----------------- | ------------------------------------------------------------------------- |
-| Secrets en GitHub | `SSH_KEY`, `SERVER_IP`                                                    |
-| Opcional          | `N8N_ENV` — variables extra (dominio, webhooks, etc.; ver `.env.example`) |
+| Secret | Requerido |
+|--------|-----------|
+| `SSH_KEY` | Sí |
+| `SERVER_IP` | Sí |
+| `N8N_ENV` | No (`N8N_ENCRYPTION_KEY`, etc.) |
 
 ## Contenedor
 
-| Parámetro      | Valor                          |
-| -------------- | ------------------------------ |
-| Nombre         | `n8n`                          |
-| Imagen         | `docker.n8n.io/n8nio/n8n`      |
-| Red            | `app_network`                  |
-| Volumen host   | `/app/n8n` → `/home/node/.n8n` |
-| Puerto interno | `5678`                         |
+| Parámetro | Valor |
+|-----------|-------|
+| Nombre | `n8n` |
+| Puerto interno | `5678` |
+| Volumen datos | `/app/n8n` → `/home/node/.n8n` |
+| Volumen procesed | `/app/projects/uefn-backend/procesed` (workflows UEFN) |
+
+## "Lost connection to the server"
+
+n8n usa **WebSockets** y ejecuciones largas (OpenAI). El proxy nginx debe incluir `Upgrade`, `Connection`, `proxy_read_timeout 3600s` — ver deploy de `ngnix-droplets-sydney`.
+
+Tras cambiar nginx o este deploy: push a `main` en ambos repos y recarga nginx en el servidor.
 
 ## Deploy
 
-Push a `main` ejecuta `.github/workflows/deploy.yml`: crea `/app/n8n` y levanta o actualiza el contenedor `n8n`.
+Push a `main` → `.github/workflows/deploy.yml`
